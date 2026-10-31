@@ -1,6 +1,9 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <substrate.h>
+#import <sys/socket.h>
+#import <netinet/in.h>
+#import <arpa/inet.h>
 
 static NSString *kLicense = @"CITFS5ZJQ9C5TRYAJ1QAXINIPUEYYLOT|ZnSzMhnB37ILS4YjGiIXHwS8";
 static NSString *kModelPath = @"/Library/Frameworks/TomatoOCR.framework/TomatoOCRModel.bundle";
