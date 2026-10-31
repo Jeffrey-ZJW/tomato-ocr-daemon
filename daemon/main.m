@@ -5,7 +5,7 @@
 //  /ocr?path=xxx    → 整图识别，返回 TomatoOCR JSON
 // ============================================================
 #import <Foundation/Foundation.h>
-#import <TomatoOCR/TomatoOCR.h>
+#import "../libs/TomatoOCR.framework/Headers/TomatoOCR.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
