@@ -1,0 +1,8 @@
+Package: com.jeffrey.tomatoocr
+Name: TomatoOCRTweak
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: TomatoOCR tweak for AutoTouch
+Maintainer: jeffrey
+Author: jeffrey
+Section: Tweaks

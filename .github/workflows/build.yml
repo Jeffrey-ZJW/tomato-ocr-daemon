@@ -1,4 +1,4 @@
-name: Build OCR Daemon
+name: Build OCR Tweak
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
           cp -R "$LATEST_SDK" $THEOS/sdks/
 
       - name: Build
-        working-directory: daemon
+        working-directory: tweak
         run: |
           export PATH=$THEOS/bin:$PATH
           make THEOS=$THEOS package FINALPACKAGE=1
@@ -40,7 +40,7 @@ jobs:
       - name: Move deb to root
         run: |
           mkdir -p output
-          cp daemon/packages/*.deb output/tomato-ocr.deb
+          cp tweak/packages/*.deb output/tomato-ocr.deb
           ls -la output/
 
       - name: Upload artifact
