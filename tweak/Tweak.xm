@@ -131,8 +131,13 @@ static void startServer(void) {
 
 %ctor {
     @autoreleasepool {
-        logLine(@"=== tomato-ocr-tweak loading ===");
-        ocrInit();
-        startServer();
+        logLine(@"=== tomato-ocr-tweak loaded, waiting for app launch ===");
+        // 等 AutoTouch 完全启动后再初始化（TomatoOCR.dylib 需要先加载完）
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                ocrInit();
+                startServer();
+            });
+        }];
     }
 }
