@@ -1,21 +1,22 @@
 // ============================================================
 //  tomato-ocr-daemon —— 独立 OCR 服务
-//  监听 127.0.0.1:9999
-//  /status          → 返回 setLicense 结果
-//  /ocr?path=xxx    → 整图识别，返回 TomatoOCR JSON
+//  编译时不链接 TomatoOCR，运行时 dlopen
 // ============================================================
 #import <Foundation/Foundation.h>
-#import "../libs/TomatoOCR.framework/Headers/TomatoOCR.h"
+#import <objc/runtime.h>
+#import <objc/message.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <dlfcn.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
 
 static NSString *const kLogFile = @"/var/mobile/Library/Preferences/tomato-ocr-daemon.log";
 static const int kPort = 9999;
+static NSString *const kDylibPath = @"/Library/Frameworks/TomatoOCR.framework/TomatoOCR";
 static NSString *const kModelPath = @"/Library/Frameworks/TomatoOCR.framework/TomatoOCRModel.bundle";
 static NSString *const kLicense = @"CITFS5ZJQ9C5TRYAJ1QAXINIPUEYYLOT|ZnSzMhnB37ILS4YjGiIXHwS8";
 
@@ -30,7 +31,23 @@ static void logLine(NSString *fmt, ...) {
         fh = [NSFileHandle fileHandleForWritingAtPath:kLogFile];
     }
     if (fh) { [fh seekToEndOfFile]; [fh writeData:[line dataUsingEncoding:NSUTF8StringEncoding]]; [fh closeFile]; }
-    NSLog(@"%@", msg);
+}
+
+// 调类方法：[TomatoOCR performSelector:...] 简化
+static id tomatoCall(Class cls, SEL sel, id arg1, id arg2) {
+    if (!cls) return nil;
+    NSMethodSignature *sig = [cls methodSignatureForSelector:sel];
+    if (!sig) { logLine(@"no sel %@", NSStringFromSelector(sel)); return nil; }
+    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+    [inv setTarget:cls];
+    [inv setSelector:sel];
+    NSUInteger idx = 2;
+    if (arg1) [inv setArgument:&arg1 atIndex:idx++];
+    if (arg2) [inv setArgument:&arg2 atIndex:idx++];
+    [inv invoke];
+    id ret = nil;
+    if (sig.methodReturnLength == sizeof(id)) [inv getReturnValue:&ret];
+    return ret;
 }
 
 static NSString *g_licenseResult = @"";
@@ -39,16 +56,25 @@ static BOOL g_ready = NO;
 static void ocrInit(void) {
     @autoreleasepool {
         @try {
-            [TomatoOCR init:kModelPath];
-            logLine(@"[init] done, model=%@", kModelPath);
-            g_licenseResult = [TomatoOCR setLicense:kLicense remark:@"tomato-ocr-daemon"];
-            logLine(@"[setLicense] → %@", g_licenseResult);
-            [TomatoOCR setRecType:@"ch-3.0"];
-            [TomatoOCR setReturnType:@"json"];
+            void *h = dlopen([kDylibPath UTF8String], RTLD_NOW);
+            if (!h) { logLine(@"dlopen failed: %s", dlerror()); return; }
+            logLine(@"dlopen ok");
+            Class cls = NSClassFromString(@"TomatoOCR");
+            if (!cls) { logLine(@"no TomatoOCR class"); return; }
+            logLine(@"class found");
+
+            tomatoCall(cls, @selector(init:), kModelPath, nil);
+            logLine(@"init done");
+
+            id lic = tomatoCall(cls, @selector(setLicense:remark:), kLicense, @"tomato-ocr-daemon");
+            g_licenseResult = [lic isKindOfClass:[NSString class]] ? lic : [NSString stringWithFormat:@"%@", lic];
+            logLine(@"setLicense → %@", g_licenseResult);
+
+            tomatoCall(cls, @selector(setRecType:), @"ch-3.0", nil);
+            tomatoCall(cls, @selector(setReturnType:), @"json", nil);
             g_ready = YES;
         } @catch (NSException *e) {
             g_licenseResult = [NSString stringWithFormat:@"exception: %@", e.reason];
-            logLine(@"[init] exception: %@", e.reason);
         }
     }
 }
@@ -88,16 +114,17 @@ static void handleRequest(int client, NSString *request) {
     } else if ([uc.path isEqualToString:@"/ocr"]) {
         NSString *img = params[@"path"];
         if (!img || img.length == 0) { sendJson(client, @{@"error": @"missing path"}); return; }
-        if (!g_ready) { sendJson(client, @{@"error": @"ocr not ready", @"license": g_licenseResult}); return; }
+        if (!g_ready) { sendJson(client, @{@"error": @"not ready", @"license": g_licenseResult}); return; }
         @try {
-            NSString *r = [TomatoOCR ocrFile:img type:@3];
-            logLine(@"[ocr] %@ → %lu chars", img, (unsigned long)r.length);
-            sendRawJson(client, r ?: @"{}");
+            Class cls = NSClassFromString(@"TomatoOCR");
+            id r = tomatoCall(cls, @selector(ocrFile:type:), img, @3);
+            NSString *s = [r isKindOfClass:[NSString class]] ? r : [NSString stringWithFormat:@"%@", r];
+            sendRawJson(client, s ?: @"{}");
         } @catch (NSException *e) {
             sendJson(client, @{@"error": e.reason});
         }
     } else {
-        sendJson(client, @{@"endpoints": @[@"/status", @"/ocr?path=/path/to/image.png"]});
+        sendJson(client, @{@"endpoints": @[@"/status", @"/ocr?path=xxx"]});
     }
 }
 
@@ -111,7 +138,7 @@ static void *httpThread(void *arg) {
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     addr.sin_port = htons(kPort);
     if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
-        logLine(@"bind %d 失败: %s", kPort, strerror(errno));
+        logLine(@"bind %d failed: %s", kPort, strerror(errno));
         return NULL;
     }
     listen(s, 10);
@@ -138,10 +165,7 @@ static void *httpThread(void *arg) {
             }
             if (total >= (ssize_t)(he.location + 4 + cl)) break;
         }
-        if (total > 0) {
-            buf[total] = '\0';
-            handleRequest(c, [NSString stringWithUTF8String:buf]);
-        }
+        if (total > 0) { buf[total] = '\0'; handleRequest(c, [NSString stringWithUTF8String:buf]); }
         close(c);
     }
     return NULL;
