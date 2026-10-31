@@ -56,11 +56,9 @@ static BOOL g_ready = NO;
 static void ocrInit(void) {
     @autoreleasepool {
         @try {
-            void *h = dlopen([kDylibPath UTF8String], RTLD_NOW);
-            if (!h) { logLine(@"dlopen failed: %s", dlerror()); return; }
-            logLine(@"dlopen ok");
+            // dylib 由 MobileSubstrate 自动注入，不需要 dlopen
             Class cls = NSClassFromString(@"TomatoOCR");
-            if (!cls) { logLine(@"no TomatoOCR class"); return; }
+            if (!cls) { logLine(@"no TomatoOCR class (Substrate inject failed?)"); return; }
             logLine(@"class found");
 
             tomatoCall(cls, @selector(init:), kModelPath, nil);
