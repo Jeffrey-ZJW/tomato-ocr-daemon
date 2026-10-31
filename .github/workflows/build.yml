@@ -1,0 +1,56 @@
+name: Build OCR Daemon
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    env:
+      THEOS: /Users/runner/theos
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: brew install ldid dpkg
+
+      - name: Setup Theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+
+      - name: Download iOS SDK
+        run: |
+          mkdir -p $THEOS/sdks
+          git clone --depth 1 https://github.com/theos/sdks.git /tmp/theos-sdks
+          LATEST_SDK=$(ls -d /tmp/theos-sdks/iPhoneOS*.sdk | sort -V | tail -1)
+          cp -R "$LATEST_SDK" $THEOS/sdks/
+
+      - name: Build
+        working-directory: daemon
+        run: |
+          export PATH=$THEOS/bin:$PATH
+          make THEOS=$THEOS package FINALPACKAGE=1
+
+      - name: Move deb to root
+        run: |
+          mkdir -p output
+          cp daemon/packages/*.deb output/tomato-ocr.deb
+          ls -la output/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tomato-ocr-deb
+          path: output/*.deb
+
+      - name: Release
+        run: |
+          gh release upload v0.0.1 output/tomato-ocr.deb --clobber || gh release create v0.0.1 output/tomato-ocr.deb --title "v0.0.1"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

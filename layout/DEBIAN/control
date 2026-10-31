@@ -1,0 +1,8 @@
+Package: com.jeffrey.tomato-ocr
+Name: tomato-ocr-daemon
+Version: 0.0.1
+Architecture: iphoneos-arm64
+Description: TomatoOCR local HTTP service
+Maintainer: jeffrey
+Author: jeffrey
+Section: Utilities
