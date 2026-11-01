@@ -16,7 +16,7 @@ static void logLine(NSString *fmt, ...) {
     NSString *line = [[NSString alloc] initWithFormat:fmt arguments:args];
     va_end(args);
     NSLog(@"[TomatoOCR] %@", line);
-    NSString *logPath = @"/var/mobile/Library/Preferences/tomato-ocr-tweak.log";
+    NSString *logPath = @"/tmp/tomato-ocr-tweak.log";
     NSString *entry = [NSString stringWithFormat:@"%@ %@\n", [NSDate date], line];
     FILE *f = fopen([logPath UTF8String], "a");
     if (f) { fwrite([entry UTF8String], 1, [entry length], f); fclose(f); }
