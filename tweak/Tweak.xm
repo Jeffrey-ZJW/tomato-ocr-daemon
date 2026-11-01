@@ -103,6 +103,16 @@ static NSString* handleRoute(NSString *path, NSString *query) {
         id result = tomatoCall(cls, @selector(ocrFile:type:), file, @(3));
         return [result isKindOfClass:[NSString class]] ? result : [NSString stringWithFormat:@"{\"error\":\"%@\"}", result];
     }
+    if ([path isEqualToString:@"/test"]) {
+        // 测试 dlopen
+        void *h = dlopen("/Library/MobileSubstrate/DynamicLibraries/TomatoOCR.dylib", RTLD_NOW);
+        if (h) {
+            Class cls = NSClassFromString(@"TomatoOCR");
+            return [NSString stringWithFormat:@"{\"dlopen\":\"ok\",\"class\":%@}", cls ? @"found" : @"nil"];
+        } else {
+            return [NSString stringWithFormat:@"{\"dlopen\":\"fail\",\"error\":\"%s\"}", dlerror()];
+        }
+    }
     return @"<h1>tomato-ocr</h1>";
 }
 
