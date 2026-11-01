@@ -77,7 +77,16 @@ static void ocrInit(void) {
 
 static NSString* handleRoute(NSString *path, NSString *query) {
     if ([path isEqualToString:@"/status"]) {
-        return [NSString stringWithFormat:@"{\"ready\":%@,\"license\":\"%@\"}", g_ready ? @"true" : @"false", g_licenseResult];
+        // 调试：列出所有包含 Tomato 的类
+        unsigned int classCount = 0;
+        Class *classes = objc_copyClassList(&classCount);
+        NSMutableArray *tomatoClasses = [NSMutableArray array];
+        for (unsigned int i = 0; i < classCount; i++) {
+            NSString *cn = NSStringFromClass(classes[i]);
+            if ([cn containsString:@"Tomato"]) [tomatoClasses addObject:cn];
+        }
+        free(classes);
+        return [NSString stringWithFormat:@"{\"ready\":%@,\"license\":\"%@\",\"classes\":%@}", g_ready ? @"true" : @"false", g_licenseResult, [tomatoClasses componentsJoinedByString:@","]];
     }
     if ([path isEqualToString:@"/ocr"]) {
         Class cls = NSClassFromString(@"TomatoOCR");
