@@ -16,6 +16,10 @@ static void logLine(NSString *fmt, ...) {
     NSString *line = [[NSString alloc] initWithFormat:fmt arguments:args];
     va_end(args);
     NSLog(@"[TomatoOCR] %@", line);
+    NSString *logPath = @"/var/mobile/Library/Preferences/tomato-ocr-tweak.log";
+    NSString *entry = [NSString stringWithFormat:@"%@ %@\n", [NSDate date], line];
+    FILE *f = fopen([logPath UTF8String], "a");
+    if (f) { fwrite([entry UTF8String], 1, [entry length], f); fclose(f); }
 }
 
 static id tomatoCall(Class cls, SEL sel, ...) {
@@ -40,6 +44,17 @@ static id tomatoCall(Class cls, SEL sel, ...) {
 static void ocrInit(void) {
     @autoreleasepool {
         @try {
+            // 调试：列出所有包含 Tomato 的类
+            unsigned int classCount = 0;
+            Class *classes = objc_copyClassList(&classCount);
+            NSMutableArray *tomatoClasses = [NSMutableArray array];
+            for (unsigned int i = 0; i < classCount; i++) {
+                NSString *cn = NSStringFromClass(classes[i]);
+                if ([cn containsString:@"Tomato"]) [tomatoClasses addObject:cn];
+            }
+            logLine(@"Tomato classes found: %@", tomatoClasses);
+            free(classes);
+
             Class cls = NSClassFromString(@"TomatoOCR");
             if (!cls) { logLine(@"no TomatoOCR class"); return; }
             logLine(@"class found");
